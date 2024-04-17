@@ -1,0 +1,18 @@
+[package]
+name = "localtime"
+version = "0.1.0"
+edition = "2021"
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[build-dependencies]
+embed-resource = "2.4.2"
+
+[dependencies]
+winapi = { version = "0.3", features = ["winuser", "sysinfoapi"] }
+reqwest = "0.12.3"
+tokio = { version = "1", features = ["full"] }
+serde_json = "1.0.116"
+serde = { version = "1.0.198", features = ["derive"] }
+chrono = "0.4.38"
