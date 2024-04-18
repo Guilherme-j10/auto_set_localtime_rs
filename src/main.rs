@@ -1,5 +1,8 @@
-use std::io::Error;
+use chrono::{Local, Timelike};
 use serde::{Deserialize, Serialize};
+use std::fs::File;
+use std::io::{Error, Read, Write};
+use std::path::Path;
 use winapi::um::minwinbase::SYSTEMTIME;
 use winapi::um::sysinfoapi::SetLocalTime;
 
@@ -19,7 +22,13 @@ struct DateTimeApiReturn {
 
 #[tokio::main]
 async fn main() {
-    let payload_datetime = get_current_datetime().await.unwrap();
+    let request_datetime = get_current_datetime().await;
+
+    if request_datetime.is_err() {
+        handle_error_logs(&request_datetime.as_ref().unwrap_err());
+    }
+
+    let payload_datetime = request_datetime.unwrap();
     let separete_domain: Vec<&str> = payload_datetime.datetime.split("T").collect();
 
     let date: Vec<&str> = separete_domain.get(0).unwrap().split("-").collect();
@@ -51,11 +60,9 @@ async fn main() {
 
     unsafe {
         if SetLocalTime(&mut current_payload) == 0 {
-            return println!("Erro ao executar código: {:?}", Error::last_os_error());
+            handle_error_logs(&format!("Error in execution: {:?}", Error::last_os_error()));
         }
     }
-
-    println!("Hora do sistema alterada com sucesso!");
 }
 
 async fn get_current_datetime() -> Result<DateTimeApiReturn, String> {
@@ -69,8 +76,34 @@ async fn get_current_datetime() -> Result<DateTimeApiReturn, String> {
         .unwrap()
         .text()
         .await
-        .expect("Error in converts to text");
+        .expect("Error in conversion to text");
     let payload_data: DateTimeApiReturn = serde_json::from_str(response_data.as_str()).unwrap();
 
     Ok(payload_data)
+}
+
+fn handle_error_logs(err: &str) {
+    let logs_file_path = Path::new("./logs_error.txt");
+    let seconds = Local::now().second();
+
+    match File::open(logs_file_path) {
+        Ok(mut file) => {
+            let mut content_buffer = String::new();
+            let _ = file.read_to_string(&mut content_buffer);
+            content_buffer.push_str(&format!("{} - [{}]\n", err, seconds));
+
+            if let Err(e) = File::create(logs_file_path)
+                .and_then(|mut nfile| nfile.write_all(content_buffer.as_bytes()))
+            {
+                eprintln!("Error writing to file: {}", e);
+            }
+        }
+        Err(_) => {
+            if let Err(e) = File::create(logs_file_path).and_then(|mut file| {
+                file.write_all(format!("{} - [{}]\n", err, seconds).as_bytes())
+            }) {
+                eprintln!("Error creating file: {}", e);
+            }
+        }
+    }
 }
